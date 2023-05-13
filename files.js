@@ -1,75 +1,84 @@
 const fs = require("fs").promises;
 const path = require("path");
-const chalk = require("chalk");
+// const chalk = require("chalk");
 
 const dataValidator = require("./helpers/dataValidator");
 const checkExtention = require("./helpers/checkExtention");
 
-async function createFile(fileName, content) {
-  const data = { fileName, content };
-
-  const isValid = dataValidator(data);
-  console.log();
-
-  if (isValid.error) {
-    console.log(
-      chalk.red(`Please specify ${isValid.error.details[0].path[0]} parametr`)
-    );
-  }
-
-  const { result, extention } = checkExtention(fileName);
-
-  if (!result) {
-    console.log(
-      chalk.red(
-        `Sorry this aplication does not support "${extention}" extention`
-      )
-    );
-  }
-
+async function createFile(req,res) {
+  console.log('func')
   try {
+
+    const isValid = dataValidator(req.body);
+  
+    if (isValid.error) {
+      res.status(400).json({message:`Please specify ${isValid.error.details[0].path[0]} parametr`})
+      return
+    }
+    const { result, extention } = checkExtention(req.body.fileName);
+  
+    if (!result) {
+      res.status(400).json({message:`Sorry this aplication does not support "${extention}" extention`})
+      return
+    }
+
     await fs.writeFile(
-      path.join(__dirname, "./files", fileName),
-      content,
+      path.join(__dirname, "./files", req.body.fileName),
+      req.body.content,
       "utf-8"
     );
-    console.log(chalk.green("File was successful created"));
+    res.json({message:"File was successful created"})
+    
   } catch (error) {
-    console.log(error);
+    const {status = 500, massage = "Server error"} = error;
+    return res.status(status).json({massage})
   }
+ 
+
 }
 
-async function getFiles() {
-  const namesArr = await fs.readdir(path.join(__dirname, "./files"));
+async function getFiles(req,res) {
+  try {
+    const namesArr = await fs.readdir(path.join(__dirname, "./files"));
 
-  if (namesArr.length === 0) {
-    console.log(chalk.red("There is no files in this directory"));
-    return;
+    if (!namesArr.length) {
+     res.status(400).json({message:"Not files in this directory"})
+     return
+    }
+    res.json(namesArr)
+  } catch (error) {
+    const {status = 500, massage = "Server error"} = error;
+    return res.status(status).json({massage})
+    
   }
 
-  console.log(namesArr);
 }
 
-async function getFile(name) {
-  const namesArr = await fs.readdir(path.join(__dirname, "./files"));
-  const filePath = path.join(__dirname, `./files/${name}`);
-  const isConsist = namesArr.includes(name);
-  const extname = path.extname(name);
+async function getFile(req,res) {
+  try {
+    const {fileName} = req.params;
+    const namesArr = await fs.readdir(path.join(__dirname, "./files"));
+  const filePath = path.join(__dirname, `./files/${fileName}`);
+  const isConsist = namesArr.includes(fileName);
+  const extname = path.extname(fileName);
 
   if (!isConsist) {
-    console.log(
-      chalk.red(`There is not file with '${name}' at this directory`)
-    );
+    res.status(400).json({message:`There is not file with '${fileName}' at this directory`})
     return;
   }
-
   const fileData = await fs.readFile(filePath, "utf-8");
-
-  return console.log({
-    name: path.basename(name, extname),
+  res.json({
+    name: path.basename(fileName, extname),
     extention: extname.slice(1),
     content: fileData,
-  });
+  })
+  } catch (error) {
+    const {status = 500, massage = "Server error"} = error;
+    return res.status(status).json({massage}) 
+  }
+  
+
+
 }
 
 module.exports = {
